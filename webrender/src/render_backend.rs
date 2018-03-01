@@ -150,7 +150,7 @@ impl Document {
     }
 
     // WIP: this will become build_scene and replace the one above.
-    fn build_scene_async(
+    fn _build_scene_async(
         &mut self,
         document_id: DocumentId,
         resource_cache: &ResourceCache,
@@ -763,14 +763,14 @@ impl RenderBackend {
             let _timer = profile_counters.total_time.timer();
             profile_scope!("build scene");
 
-            //doc.build_scene(&mut self.resource_cache);
-            doc.build_scene_async(
-                document_id,
-                &self.resource_cache,
-                &self.scene_tx,
-                op.render,
-            );
-            op.render = false;
+            doc.build_scene(&mut self.resource_cache);
+            //doc.build_scene_async(
+            //    document_id,
+            //    &self.resource_cache,
+            //    &self.scene_tx,
+            //    op.render,
+            //);
+            //op.render = false;
             doc.render_on_hittest = true;
         }
 
