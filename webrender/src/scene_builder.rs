@@ -12,6 +12,7 @@ use resource_cache::{FontInstanceMap, TiledImageMap};
 use render_backend::DocumentView;
 use renderer::{PipelineInfo, SceneBuilderHooks};
 use scene::Scene;
+use std::mem;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 // Message from render backend to scene builder.
@@ -71,6 +72,35 @@ pub struct SceneBuilder {
     api_tx: MsgSender<ApiMsg>,
     config: FrameBuilderConfig,
     hooks: Option<Box<SceneBuilderHooks + Send>>,
+}
+
+struct SwapHookRAII<'a> {
+    hooks: &'a Option<Box<SceneBuilderHooks + Send>>,
+    pipeline_info: PipelineInfo,
+}
+
+impl<'a> SwapHookRAII<'a> {
+    pub fn new(
+        hooks: &'a Option<Box<SceneBuilderHooks + Send>>,
+        pipeline_info: PipelineInfo,
+    ) -> Self {
+        if let &Some(ref hooks) = hooks {
+            hooks.pre_scene_swap();
+        }
+        SwapHookRAII {
+            hooks,
+            pipeline_info,
+        }
+    }
+}
+
+impl<'a> Drop for SwapHookRAII<'a> {
+    fn drop(&mut self) {
+        if let &Some(ref hooks) = self.hooks {
+            let info = mem::replace(&mut self.pipeline_info, PipelineInfo::default());
+            hooks.post_scene_swap(info);
+        }
+    }
 }
 
 impl SceneBuilder {
@@ -149,9 +179,8 @@ impl SceneBuilder {
 
                 // TODO: pre-rasterization.
 
-                if let Some(ref hooks) = self.hooks {
-                    hooks.pre_scene_swap();
-                }
+                let _swap_raii = SwapHookRAII::new(&self.hooks, pipeline_info);
+
                 let (result_tx, result_rx) = channel();
                 self.tx.send(SceneBuilderResult::Transaction {
                     document_id,
@@ -166,9 +195,8 @@ impl SceneBuilder {
 
                 // Block until the swap is done, then invoke the hook
                 let _ = result_rx.recv();
-                if let Some(ref hooks) = self.hooks {
-                    hooks.post_scene_swap(pipeline_info);
-                }
+
+                // _swap_raii goes out of scope here, invokes the post-swap hook
             }
             SceneBuilderRequest::Stop => { return false; }
         }
