@@ -245,14 +245,17 @@ impl<'a> DisplayListFlattener<'a> {
         debug_assert!(flattener.picture_stack.is_empty());
 
         new_scene.root_pipeline_id = Some(root_pipeline_id);
-        // Copy epochs for the built pipelines into new_scene
         for (pipeline, (epoch, buildstate)) in flattener.pipeline_epochs.iter() {
             debug_assert!(*buildstate == BuildState::Built);
             new_scene.pipeline_epochs.insert(*pipeline, *epoch);
         }
-        // Mark any not-built piplines as such in the flattener
         for (pipeline_id, epoch) in scene.pipeline_epochs.iter() {
-            flattener.pipeline_epochs.entry(*pipeline_id).or_insert((*epoch, BuildState::NotBuilt));
+            let built = if scene.pipelines.contains_key(pipeline_id) {
+                BuildState::NotBuilt
+            } else {
+                BuildState::Built
+            };
+            flattener.pipeline_epochs.entry(*pipeline_id).or_insert((*epoch, built));
         }
 
         new_scene.pipelines = scene.pipelines.clone();
