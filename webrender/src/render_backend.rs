@@ -299,7 +299,11 @@ impl Document {
     pub fn updated_pipeline_info(&mut self) -> PipelineInfo {
         let removed_pipelines = replace(&mut self.current.removed_pipelines, Vec::new());
         PipelineInfo {
-            epochs: self.current.scene.pipeline_epochs.clone(),
+            epochs: self.frame_builder
+                        .as_ref()
+                        .expect("Only call this after building a frame")
+                        .pipeline_epochs
+                        .clone(),
             removed_pipelines,
         }
     }

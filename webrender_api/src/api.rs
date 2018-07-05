@@ -648,18 +648,10 @@ impl fmt::Debug for ApiMsg {
 // Used in a PipelineInfo to indicate whether or not a pipeline at a particular
 // epoch was built or not. A pipeline may have not been built if it it was not
 // attached to the root pipeline via iframe items.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct BuildState(pub bool);
-
-impl BuildState {
-    pub fn not_built() -> BuildState {
-        BuildState(false)
-    }
-
-    pub fn built() -> BuildState {
-        BuildState(true)
-    }
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum BuildState {
+    NotBuilt,
+    Built,
 }
 
 #[repr(C)]

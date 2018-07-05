@@ -153,7 +153,7 @@ impl SceneBuilder {
                 let (pipeline_info, result_tx, result_rx) = match (&self.hooks, &built_scene) {
                     (&Some(ref hooks), &Some(ref built)) => {
                         let info = PipelineInfo {
-                            epochs: built.scene.pipeline_epochs.clone(),
+                            epochs: built.frame_builder.pipeline_epochs.clone(),
                             removed_pipelines: built.removed_pipelines.clone(),
                         };
                         let (tx, rx) = channel();

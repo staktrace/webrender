@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::{BuiltDisplayList, ColorF, DeviceIntPoint, DeviceIntRect, DevicePixelScale};
-use api::{DeviceUintPoint, DeviceUintRect, DeviceUintSize, DocumentLayer, FontRenderMode};
+use api::{BuildState, BuiltDisplayList, ColorF, DeviceIntPoint, DeviceIntRect, DevicePixelScale};
+use api::{DeviceUintPoint, DeviceUintRect, DeviceUintSize, DocumentLayer, Epoch, FontRenderMode};
 use api::{LayoutPoint, LayoutRect, LayoutSize, PipelineId, WorldPoint};
 use clip::{ClipChain, ClipStore};
 use clip_scroll_node::{ClipScrollNode};
@@ -63,6 +63,7 @@ pub struct FrameBuilder {
     pub hit_testing_runs: Vec<HitTestingRun>,
     pub config: FrameBuilderConfig,
     pub scrollbar_prims: Vec<ScrollbarPrimitive>,
+    pub pipeline_epochs: FastHashMap<PipelineId, (Epoch, BuildState)>,
 }
 
 pub struct FrameBuildingContext<'a> {
@@ -137,6 +138,7 @@ impl FrameBuilder {
         FrameBuilder {
             hit_testing_runs: Vec::new(),
             scrollbar_prims: Vec::new(),
+            pipeline_epochs: FastHashMap::default(),
             prim_store: PrimitiveStore::new(),
             clip_store: ClipStore::new(),
             screen_rect: DeviceUintRect::zero(),
@@ -163,6 +165,7 @@ impl FrameBuilder {
         FrameBuilder {
             hit_testing_runs: flattener.hit_testing_runs,
             scrollbar_prims: flattener.scrollbar_prims,
+            pipeline_epochs: flattener.pipeline_epochs,
             prim_store: flattener.prim_store,
             clip_store: flattener.clip_store,
             screen_rect,

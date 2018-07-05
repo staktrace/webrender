@@ -150,9 +150,6 @@ pub struct DisplayListFlattener<'a> {
     /// The map of all font instances.
     font_instances: FontInstanceMap,
 
-    /// Used to track the latest flattened epoch for each pipeline.
-    pipeline_epochs: Vec<(PipelineId, (Epoch, BuildState))>,
-
     /// A set of pipelines that the caller has requested be made available as
     /// output textures.
     output_pipelines: &'a FastHashSet<PipelineId>,
@@ -173,6 +170,10 @@ pub struct DisplayListFlattener<'a> {
 
     /// A stack of the currently active shadows
     shadow_stack: Vec<(Shadow, PictureIndex)>,
+
+    /// Used to track the latest flattened epoch for each pipeline, as well
+    /// as the epochs of any pipelines that weren't part of the built scene.
+    pub pipeline_epochs: FastHashMap<PipelineId, (Epoch, BuildState)>,
 
     /// A list of scrollbar primitives.
     pub scrollbar_prims: Vec<ScrollbarPrimitive>,
@@ -207,7 +208,7 @@ impl<'a> DisplayListFlattener<'a> {
         let root_pipeline_id = scene.root_pipeline_id.unwrap();
         let root_pipeline = scene.pipelines.get(&root_pipeline_id).unwrap();
 
-        let root_epoch = scene.pipeline_epochs[&root_pipeline_id].0;
+        let root_epoch = scene.pipeline_epochs[&root_pipeline_id];
 
         let background_color = root_pipeline
             .background_color
@@ -218,7 +219,7 @@ impl<'a> DisplayListFlattener<'a> {
             clip_scroll_tree,
             font_instances,
             config: *frame_builder_config,
-            pipeline_epochs: Vec::new(),
+            pipeline_epochs: FastHashMap::default(),
             output_pipelines,
             id_to_index_mapper: ClipIdToIndexMapper::default(),
             hit_testing_runs: recycle_vec(old_builder.hit_testing_runs),
@@ -231,6 +232,7 @@ impl<'a> DisplayListFlattener<'a> {
             clip_store: old_builder.clip_store.recycle(),
         };
 
+        flattener.pipeline_epochs.insert(root_pipeline_id, (root_epoch, BuildState::Built));
         flattener.id_to_index_mapper.initialize_for_pipeline(root_pipeline);
         flattener.push_root(
             root_pipeline_id,
@@ -243,10 +245,14 @@ impl<'a> DisplayListFlattener<'a> {
         debug_assert!(flattener.picture_stack.is_empty());
 
         new_scene.root_pipeline_id = Some(root_pipeline_id);
-        new_scene.pipeline_epochs.insert(root_pipeline_id, (root_epoch, BuildState::built()));
-        new_scene.pipeline_epochs.extend(flattener.pipeline_epochs.drain(..));
-        for (pipeline_id, value) in scene.pipeline_epochs.iter() {
-            new_scene.pipeline_epochs.entry(*pipeline_id).or_insert((value.0, BuildState::not_built()));
+        // Copy epochs for the built pipelines into new_scene
+        for (pipeline, (epoch, buildstate)) in flattener.pipeline_epochs.iter() {
+            debug_assert!(*buildstate == BuildState::Built);
+            new_scene.pipeline_epochs.insert(*pipeline, *epoch);
+        }
+        // Mark any not-built piplines as such in the flattener
+        for (pipeline_id, epoch) in scene.pipeline_epochs.iter() {
+            flattener.pipeline_epochs.entry(*pipeline_id).or_insert((*epoch, BuildState::NotBuilt));
         }
 
         new_scene.pipelines = scene.pipelines.clone();
@@ -533,8 +539,8 @@ impl<'a> DisplayListFlattener<'a> {
             ),
         );
 
-        let epoch = self.scene.pipeline_epochs[&iframe_pipeline_id].0;
-        self.pipeline_epochs.push((iframe_pipeline_id, (epoch, BuildState::built())));
+        let epoch = self.scene.pipeline_epochs[&iframe_pipeline_id];
+        self.pipeline_epochs.insert(iframe_pipeline_id, (epoch, BuildState::Built));
 
         let bounds = item.rect();
         let origin = *reference_frame_relative_offset + bounds.origin.to_vector();
