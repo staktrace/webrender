@@ -216,7 +216,7 @@ impl Example for App {
         let clip = builder.define_clip_with_parent(asr, (0, 100).to(100, 200), vec![], None);
         let chain = builder.define_clip_chain(None, vec![rootclip, clip]);
 
-        builder.push_clip_and_scroll_info(ClipAndScrollInfo::new(clip, ClipId::ClipChain(chain)));
+        builder.push_clip_and_scroll_info(ClipAndScrollInfo::new(asr, ClipId::ClipChain(chain)));
         let refframe = builder.push_reference_frame(&LayoutPrimitiveInfo::new((0, 100).to(0, 100)), Some(PropertyBinding::Value(LayoutTransform::row_major(
             1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -50.0, 0.0, 1.0, -1.0, 0.0, -100.0, 0.0, 1.0
         ))), None);
