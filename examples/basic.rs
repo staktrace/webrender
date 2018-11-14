@@ -13,7 +13,6 @@ extern crate winit;
 mod boilerplate;
 
 use boilerplate::{Example, HandyDandyRectBuilder};
-use euclid::vec2;
 use winit::TouchPhase;
 use std::collections::HashMap;
 use webrender::ShaderPrecacheFlags;
@@ -182,11 +181,11 @@ impl Example for App {
 
     fn render(
         &mut self,
-        api: &RenderApi,
+        _api: &RenderApi,
         builder: &mut DisplayListBuilder,
-        txn: &mut Transaction,
+        _txn: &mut Transaction,
         _: DeviceUintSize,
-        _pipeline_id: PipelineId,
+        pipeline_id: PipelineId,
         _document_id: DocumentId,
     ) {
         let bounds = LayoutRect::new(LayoutPoint::zero(), builder.content_size());
@@ -200,74 +199,42 @@ impl Example for App {
             RasterSpace::Screen,
         );
 
-        let image_mask_key = api.generate_image_key();
-        txn.add_image(
-            image_mask_key,
-            ImageDescriptor::new(2, 2, ImageFormat::R8, true, false),
-            ImageData::new(vec![0, 80, 180, 255]),
-            None,
-        );
-        let mask = ImageMask {
-            image: image_mask_key,
-            rect: (75, 75).by(100, 100),
-            repeat: false,
-        };
-        let complex = ComplexClipRegion::new(
-            (50, 50).to(150, 150),
-            BorderRadius::uniform(20.0),
-            ClipMode::Clip
-        );
-        let id = builder.define_clip(bounds, vec![complex], Some(mask));
-        builder.push_clip_id(id);
+        let asr = builder.define_scroll_frame(None,
+                                              (0, 0).to(800, 1000),
+                                              (0, 0).to(800, 1000),
+                                              vec![],
+                                              None,
+                                              ScrollSensitivity::Script);
 
-        let info = LayoutPrimitiveInfo::new((100, 100).to(200, 200));
-        builder.push_rect(&info, ColorF::new(0.0, 1.0, 0.0, 1.0));
+        let rootclip = builder.define_clip_with_parent(ClipId::root_scroll_node(pipeline_id), (0, 0).to(800, 1000), vec![], None);
 
-        let info = LayoutPrimitiveInfo::new((250, 100).to(350, 200));
-        builder.push_rect(&info, ColorF::new(0.0, 1.0, 0.0, 1.0));
-        let border_side = BorderSide {
-            color: ColorF::new(0.0, 0.0, 1.0, 1.0),
-            style: BorderStyle::Groove,
-        };
-        let border_widths = LayoutSideOffsets::new_all_same(10.0);
-        let border_details = BorderDetails::Normal(NormalBorder {
-            top: border_side,
-            right: border_side,
-            bottom: border_side,
-            left: border_side,
-            radius: BorderRadius::uniform(20.0),
-            do_aa: true,
-        });
-
-        let info = LayoutPrimitiveInfo::new((100, 100).to(200, 200));
-        builder.push_border(&info, border_widths, border_details);
+        // This is the green rect on top
+        builder.push_clip_and_scroll_info(ClipAndScrollInfo::new(asr, rootclip));
+        builder.push_rect(&LayoutPrimitiveInfo::new((0, 0).to(100, 100)), ColorF::new(0.0, 0.5, 0.0, 1.0));
         builder.pop_clip_id();
 
-        if false {
-            // draw box shadow?
-            let rect = LayoutRect::zero();
-            let simple_box_bounds = (20, 200).by(50, 50);
-            let offset = vec2(10.0, 10.0);
-            let color = ColorF::new(1.0, 1.0, 1.0, 1.0);
-            let blur_radius = 0.0;
-            let spread_radius = 0.0;
-            let simple_border_radius = 8.0;
-            let box_shadow_type = BoxShadowClipMode::Inset;
-            let info = LayoutPrimitiveInfo::with_clip_rect(rect, bounds);
+        let clip = builder.define_clip_with_parent(asr, (0, 100).to(100, 200), vec![], None);
+        let chain = builder.define_clip_chain(None, vec![rootclip, clip]);
 
-            builder.push_box_shadow(
-                &info,
-                simple_box_bounds,
-                offset,
-                color,
-                blur_radius,
-                spread_radius,
-                BorderRadius::uniform(simple_border_radius),
-                box_shadow_type,
-            );
-        }
+        builder.push_clip_and_scroll_info(ClipAndScrollInfo::new(clip, ClipId::ClipChain(chain)));
+        let refframe = builder.push_reference_frame(&LayoutPrimitiveInfo::new((0, 100).to(0, 100)), Some(PropertyBinding::Value(LayoutTransform::row_major(
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -50.0, 0.0, 1.0, -1.0, 0.0, -100.0, 0.0, 1.0
+        ))), None);
+        builder.push_clip_id(refframe);
+        builder.push_stacking_context(&LayoutPrimitiveInfo::new((0, 0).to(0, 0)), None, TransformStyle::Flat, MixBlendMode::Normal, &[], RasterSpace::Local(1.0));
+
+        // This is the red and green rect inside the transform
+        builder.push_rect(&LayoutPrimitiveInfo::new((0, 0).to(100, 100)), ColorF::new(1.0, 0.0, 0.0, 1.0));
+        builder.push_rect(&LayoutPrimitiveInfo::new((0, 100).to(100, 200)), ColorF::new(0.0, 0.5, 0.0, 1.0));
 
         builder.pop_stacking_context();
+        builder.pop_clip_id();
+        builder.pop_reference_frame();
+        builder.pop_clip_id();
+
+        builder.pop_stacking_context();
+
+        builder.print_display_list();
     }
 
     fn on_event(&mut self, event: winit::WindowEvent, api: &RenderApi, document_id: DocumentId) -> bool {
